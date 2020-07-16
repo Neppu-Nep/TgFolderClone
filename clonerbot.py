@@ -1,6 +1,7 @@
 import subprocess
 import threading
 import re
+import os
 from time import sleep, monotonic
 
 from telegram import Update, ParseMode
@@ -38,6 +39,10 @@ def clone(update: Update, context: CallbackContext):
         view = args[3]
     except IndexError:
         view = 0
+    try:
+        skip = args[4]
+    except IndexError:
+        skip = None
 
     start_time = monotonic()
     counter = 0
@@ -51,8 +56,17 @@ def clone(update: Update, context: CallbackContext):
 
     threads.acquire()
     sleep(3)
-    bot.sendMessage(update.effective_chat.id, "Started")
-    cmd = f"py folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view}"
+    bot.sendMessage(update.effective_chat.id, "Started", timeout=5)
+    if 'DYNO' in os.environ:
+        if skip:
+            cmd = f"python3 folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view} --skip {skip}"
+        else:
+            cmd = f"python3 folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view}"
+    else:
+        if skip:
+            cmd = f"py folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view} --skip {skip}"
+        else:
+            cmd = f"py folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view}"
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
     message = None
     to_edit_bool = True
@@ -136,7 +150,7 @@ def status(update: Update, context: CallbackContext):
         if each_entry_num == 0:
             message += f"Current Job - From `{source}` to `{dest}` started by `{user}`\nTotal thread used : `{thread_used}`\n\n"
         else:
-            message += f"Queue {each_entry_num+1} - From `{source}` to `{dest}` started by `{user}`\nTotal thread to use : `{thread_used}`\n\n"
+            message += f"Queue {each_entry_num} - From `{source}` to `{dest}` started by `{user}`\nTotal thread to use : `{thread_used}`\n\n"
 
     update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
 

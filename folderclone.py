@@ -4,7 +4,7 @@ import glob
 import argparse
 import json
 import random
-import httplib2shim
+import socket
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.errors import HttpError
@@ -18,6 +18,7 @@ args = {}
 parse = argparse.ArgumentParser(description='A tool intended to copy large files from one folder to another.')
 parse.add_argument('--view', default=0, help='Set the view to a different setting (tree[0]|basic[1]).')
 parse.add_argument('--thread', '-t', default=50, help='Specify total number of threads to use.')
+parse.add_argument('--skip', default=None, help='Folder ID mark')
 parsereq = parse.add_argument_group('required arguments')
 parsereq.add_argument('--source-id', '-s', help='The source ID of the folder to copy.', required=True)
 parsereq.add_argument('--destination-id', '-d', help='The destination ID of the folder to copy to.', required=True)
@@ -25,10 +26,9 @@ args = parse.parse_args()
 
 view = int(args.view)
 thread_num = int(args.thread)
-
+skip = args.skip
 print('Copy from %s to %s.' % (args.source_id, args.destination_id))
 print('View set to %s (%s).' % (view, views[view]))
-
 
 def ls(parent, searchTerms=""):
     while True:
@@ -57,6 +57,7 @@ def generaterandomdrive():
 
     global accsf
 
+    socket.setdefaulttimeout(600)
     acc_thread.acquire()
     random_acc = random.choice(accsf)
     while True:
@@ -93,24 +94,35 @@ def copy(source, dest):
 
 def rcopy(source, dest, sname, pre):
 
+    global skip
+
     pres = pre
     if view == 1:
         pres = ""
 
     filestocopy = list_file(source)
-    if filestocopy:
-        fullname = pres + sname
-        pbar = CounterProgress(f"{fullname} - ", max=len(filestocopy))
-        pbar.update()
-        for i in filestocopy:
-            threads.acquire()
-            thread = threading.Thread(target=copy, args=(i["id"], dest))
-            thread.start()
-            pbar.next()
 
-        pbar.finish()
+    if skip:
+        if source != skip:
+            if filestocopy:
+                print(f"{pre}{sname} - Skipped")
+        else:
+            skip = None
+
+    if filestocopy:
+        if not skip:
+            fullname = pres + sname
+            pbar = CounterProgress(f"{fullname[:40]} ({source}) - ", max=len(filestocopy))
+            pbar.update()
+            for i in filestocopy:
+                threads.acquire()
+                thread = threading.Thread(target=copy, args=(i["id"], dest))
+                thread.start()
+                pbar.next()
+
+            pbar.finish()
     else:
-        print(pres + sname)
+        print(f"{pres}{sname} ({source})")
 
     folderstocopy = list_folder(source)
     folderlen = len(folderstocopy) - 1
@@ -122,22 +134,60 @@ def rcopy(source, dest, sname, pre):
             nstu += f"└─ "
         else:
             nstu += f"├─ "
-        while True:
-            random_drive = generaterandomdrive()
-            try:
-                resp = random_drive.files().create(body={
-                    "name": i["name"],
-                    "mimeType": "application/vnd.google-apps.folder",
-                    "parents": [dest]
-                }, supportsAllDrives=True).execute()
-            except HttpError:
-                print("#Error Create Error")
-            else:
-                break
+        if not skip:
+            while True:
+                random_drive = generaterandomdrive()
+                try:
+                    resp = random_drive.files().create(body={
+                        "name": i["name"],
+                        "mimeType": "application/vnd.google-apps.folder",
+                        "parents": [dest]
+                    }, supportsAllDrives=True).execute()
+                except HttpError:
+                    print("#Error Create Error")
+                else:
+                    break
+        else:
+            while True:
+                random_drive = generaterandomdrive()
+                try:
+                    td_id = random_drive.files().get(
+                        fileId=dest,
+                        supportsAllDrives=True
+                    ).execute()["driveId"]
+                except HttpError:
+                    print("#Error Get Error")
+                else:
+                    break
+            while True:
+                random_drive = generaterandomdrive()
+                name = i['name'].replace("'", "\'")
+                try:
+                    resp = random_drive.files().list(
+                        corpora="drive",
+                        driveId=td_id,
+                        includeItemsFromAllDrives=True,
+                        q=f"name = '{name}'",
+                        supportsAllDrives=True
+                    ).execute()['files'][0]
+                except HttpError:
+                    print("#Error Find Error")
+                except IndexError:
+                    random_drive = generaterandomdrive()
+                    try:
+                        resp = random_drive.files().create(body={
+                            "name": i["name"],
+                            "mimeType": "application/vnd.google-apps.folder",
+                            "parents": [dest]
+                        }, supportsAllDrives=True).execute()
+                    except HttpError:
+                        print("#Error Create Error")
+                    else:
+                        break
+                else:
+                    break
         rcopy(i["id"], resp["id"], i["name"].replace('%', "%%"), nstu)
         currentlen += 1
-
-httplib2shim.patch()
 
 accsf = glob.glob('accounts/*.json')
 acc_thread = threading.BoundedSemaphore(1)
