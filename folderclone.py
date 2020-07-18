@@ -332,7 +332,7 @@ class MultiFolderClone():
                 )['id']
             else:
                 folder_id = folders_copied[folder['name']]
-            drive = self._rcopy(
+            self._rcopy(
                 folder['id'],
                 folder_id,
                 folder['name'].replace('%', '%%'),
