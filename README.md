@@ -9,7 +9,7 @@ Telegram bot for using folderclone
 5. Run `py folderclone.py`.
 
 ## Usage in telegram bot
-`/clone <source_id> <dest_id> <thread> <view> <skip>`
+`/clone <source_id> <dest_id> <thread>`
 
 `source_id` - Drive ID of the folder you want to copy from. (Required)
 
@@ -17,24 +17,8 @@ Telegram bot for using folderclone
 
 `thread` - Amount of threads to use. The higher the more resource it requires. Default - 10
 
-`view` - 0 - Tree View. 1 - Basic View. Default - Tree View.
-
-`skip` - ID of the folder to skip to. Default - None.
-
-## Details about skipping
-This is for those that host bot on heroku. Since heroku recycle their dyno approximately every 24 hr, things might stop halfway during cloning.
-
-Folder IDs are printed along side with the normal progress so you can use it for the skip parameter.
-
-Delete all the files within the folder of which the process stopped at first before cloning again. (So that you won't get duplicates)
-
-Example : `/clone 1234567890abcdefg 1234567890abcdefg 10 0 1234567890abcdefg`
-
-(Yes, you need to specify the rest parameter if you want to use the skip parameter.)
-
-
 ### Note
-`folderclone.py` - Modified version of `multifolderclone.py` from https://github.com/justcopy/Multifolderclone
+`folderclone.py` - Modified version of `multifolderclone.py` from https://github.com/Spazzlo/folderclone
 
 <details>
   <summary>Deploying to Heroku</summary>

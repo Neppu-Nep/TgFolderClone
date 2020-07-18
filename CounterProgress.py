@@ -20,4 +20,7 @@ class CounterProgress(Infinite):
         return self.progress * 100
 
     def update(self):
-        self.write("{:.2f}% [{}/{}]".format(self.percent, self.index, self.max))
+        self.write(" - {:.2f}% [{}/{}]".format(self.percent, self.index, self.max))
+
+    def finishupdate(self):
+        self.write(" | Synced")

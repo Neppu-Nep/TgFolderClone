@@ -35,14 +35,6 @@ def clone(update: Update, context: CallbackContext):
         thread_amount = args[2]
     except IndexError:
         thread_amount = 10
-    try:
-        view = args[3]
-    except IndexError:
-        view = 0
-    try:
-        skip = args[4]
-    except IndexError:
-        skip = None
 
     start_time = monotonic()
     counter = 0
@@ -58,15 +50,9 @@ def clone(update: Update, context: CallbackContext):
     sleep(3)
     bot.sendMessage(update.effective_chat.id, "Started", timeout=5)
     if 'DYNO' in os.environ:
-        if skip:
-            cmd = f"python3 folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view} --skip {skip}"
-        else:
-            cmd = f"python3 folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view}"
+        cmd = f"python3 folderclone.py -s {source} -d {dest} --threads {thread_amount}"
     else:
-        if skip:
-            cmd = f"py folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view} --skip {skip}"
-        else:
-            cmd = f"py folderclone.py -s {source} -d {dest} -t {thread_amount} --view {view}"
+        cmd = f"py folderclone.py -s {source} -d {dest} --threads {thread_amount}"
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
     message = None
     to_edit_bool = True
@@ -79,14 +65,19 @@ def clone(update: Update, context: CallbackContext):
             to_edit_bool = False
             to_send = ""
 
-        original = re.escape(line.rsplit("-", 1)[0])
-        try:
-            percent_update = line.rsplit("-", 1)[1].strip()
-        except IndexError:
-            percent_update = ""
+        matches = re.match(r"(.*)( -.*| \|.*)|(.*)", line.strip(), flags=re.MULTILINE)
 
-        regex = f"({original})-.*"
-        subst = f"\\1- {percent_update}"
+        original = matches.group(1)
+        if not original:
+            original = matches.group(3)
+        original = re.escape(original)
+
+        percent_update = matches.group(2)
+        if percent_update:
+            percent_update = percent_update.rstrip()
+
+        regex = f"({original})( -.*| \\|.*)|({original})"
+        subst = f"\\1\\3{percent_update}"
 
         new_to_send, success = re.subn(regex, subst, to_send, flags=re.MULTILINE)
 
@@ -96,13 +87,20 @@ def clone(update: Update, context: CallbackContext):
             to_send += f"{line}"
         to_send = to_send.replace("\n\n", "\n")
 
-        if "BoundedSemaphore" in to_send:
-            try:
-                to_send = to_send.split("threads\n")[1]
-            except IndexError:
-                to_send = ""
-
         print(repr(line))
+
+        if re.match(r"Copying from (.*) to (.*)", line):
+            if message:
+                if not to_edit_bool:
+                    bot.sendMessage(update.effective_chat.id, to_send)
+                else:
+                    message.edit_text(to_send)
+            else:
+                bot.sendMessage(update.effective_chat.id, to_send)
+            counter = 0
+            to_edit_bool = False
+            to_send = ""
+            continue
 
         if counter == 0:
             continue
@@ -121,6 +119,11 @@ def clone(update: Update, context: CallbackContext):
         counter = 0
         start_time = monotonic()
         proc.stdout.flush()
+    try:
+        message.edit_text(to_send)
+    except BadRequest:
+        pass
+
 
     bot.sendMessage(update.effective_chat.id, "Done")
     sleep(10)
