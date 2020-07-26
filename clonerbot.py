@@ -2,6 +2,7 @@ import subprocess
 import threading
 import re
 import os
+import sys
 from time import sleep, monotonic
 
 from telegram import Update, ParseMode
@@ -11,6 +12,11 @@ from telegram.ext import Updater, CommandHandler, CallbackContext, run_async
 
 import config
 
+if 'DYNO' not in os.environ:
+    try:
+        default_encoding = sys.argv[1].split("Active code page: ")[1]
+    except IndexError:
+        raise RuntimeError("Run again using the .bat file.")
 TOKEN = config.BOT_TOKEN
 updater = Updater(TOKEN, use_context=True)
 dp = updater.dispatcher
@@ -52,13 +58,17 @@ def clone(update: Update, context: CallbackContext):
     if 'DYNO' in os.environ:
         cmd = f"python3 folderclone.py -s {source} -d {dest} --threads {thread_amount}"
     else:
-        cmd = f"py folderclone.py -s {source} -d {dest} --threads {thread_amount}"
+        cmd = f"py folderclone.py -s {source} -d {dest} --threads {thread_amount} -e {default_encoding}"
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
     message = None
     to_edit_bool = True
     to_send = ""
 
     for line in proc.stdout:
+        try:
+            line = line.encode('cp1252').decode(default_encoding)
+        except:
+            pass
         counter = int(monotonic() - start_time)
 
         if len(to_send) >= MAX_MESSAGE_LENGTH:
@@ -87,16 +97,16 @@ def clone(update: Update, context: CallbackContext):
             to_send += f"{line}"
         to_send = to_send.replace("\n\n", "\n")
 
-        print(repr(line))
+        print(line)
 
         if re.match(r"Copying from (.*) to (.*)", line):
             if message:
                 if not to_edit_bool:
-                    bot.sendMessage(update.effective_chat.id, to_send)
+                    bot.sendMessage(update.effective_chat.id, to_send, timeout=10)
                 else:
-                    message.edit_text(to_send)
+                    message.edit_text(to_send, timeout=10)
             else:
-                bot.sendMessage(update.effective_chat.id, to_send)
+                bot.sendMessage(update.effective_chat.id, to_send, timeout=10)
             counter = 0
             to_edit_bool = False
             to_send = ""
