@@ -14,7 +14,7 @@ import config
 
 if 'DYNO' not in os.environ:
     try:
-        default_encoding = sys.argv[1].split("Active code page: ")[1]
+        default_encoding = "cp" + sys.argv[1].split("Active code page: ")[1]
     except IndexError:
         raise RuntimeError("Run again using the .bat file.")
 TOKEN = config.BOT_TOKEN
@@ -23,10 +23,12 @@ dp = updater.dispatcher
 threads = threading.BoundedSemaphore(1)
 allowed_chats = config.ALLOWED_CHATS
 queue = []
+proc = None
 
 
 @run_async
 def clone(update: Update, context: CallbackContext):
+    global proc
     chat_id = str(update.effective_chat.id)
     user_id = str(update.message.from_user.id)
     bot = context.bot
@@ -54,7 +56,6 @@ def clone(update: Update, context: CallbackContext):
 
     threads.acquire()
     sleep(3)
-    bot.sendMessage(update.effective_chat.id, "Started", timeout=5)
     if 'DYNO' in os.environ:
         cmd = f"python3 folderclone.py -s {source} -d {dest} --threads {thread_amount}"
     else:
@@ -134,8 +135,7 @@ def clone(update: Update, context: CallbackContext):
     except BadRequest:
         pass
 
-
-    bot.sendMessage(update.effective_chat.id, "Done")
+    proc = None
     sleep(10)
     queue.pop(0)
     threads.release()
@@ -168,8 +168,21 @@ def status(update: Update, context: CallbackContext):
     update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN)
 
 
+@run_async
+def stop(update: Update, context: CallbackContext):
+    global proc
+    chat_id = str(update.effective_chat.id)
+
+    if chat_id not in allowed_chats:
+        return
+
+    subprocess.call(['taskkill', '/F', '/T', '/PID',  str(proc.pid)])
+    context.bot.sendMessage(update.effective_chat.id, "Current running job killed.")
+
+
 dp.add_handler(CommandHandler('clone', clone))
 dp.add_handler(CommandHandler('status', status))
+dp.add_handler(CommandHandler('stop', stop))
 print("Bot Started.")
 updater.start_polling()
 updater.idle()
