@@ -1,3 +1,4 @@
+import os
 from sys import stdout
 from collections import deque
 from progress import Infinite
@@ -26,7 +27,6 @@ class CounterProgress(Infinite):
 
     def __init__(self, message='', **kwargs):
         self.encoding = kwargs.get('encoding', 'cp1252')
-        self.file.reconfigure(encoding=self.encoding)
         super(CounterProgress, self).__init__(**kwargs)
         self.index = 0
         self.start_ts = monotonic()
@@ -40,6 +40,9 @@ class CounterProgress(Infinite):
 
         self._width = 0
         self.message = message
+
+        if 'DYNO' not in os.environ:
+            self.file.reconfigure(encoding=self.encoding)
 
         if self.file:
             print(self.message, end='', file=self.file)

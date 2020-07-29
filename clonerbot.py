@@ -3,6 +3,7 @@ import threading
 import re
 import os
 import sys
+import signal
 from time import sleep, monotonic
 
 from telegram import Update, ParseMode
@@ -17,6 +18,7 @@ if 'DYNO' not in os.environ:
         default_encoding = "cp" + sys.argv[1].split("Active code page: ")[1]
     except IndexError:
         raise RuntimeError("Run again using the .bat file.")
+
 TOKEN = config.BOT_TOKEN
 updater = Updater(TOKEN, use_context=True)
 dp = updater.dispatcher
@@ -58,9 +60,10 @@ def clone(update: Update, context: CallbackContext):
     sleep(3)
     if 'DYNO' in os.environ:
         cmd = f"python3 folderclone.py -s {source} -d {dest} --threads {thread_amount}"
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True, preexec_fn=os.setsid)
     else:
         cmd = f"py folderclone.py -s {source} -d {dest} --threads {thread_amount} -e {default_encoding}"
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
     message = None
     to_edit_bool = True
     to_send = ""
@@ -176,8 +179,15 @@ def stop(update: Update, context: CallbackContext):
     if chat_id not in allowed_chats:
         return
 
-    subprocess.call(['taskkill', '/F', '/T', '/PID',  str(proc.pid)])
-    context.bot.sendMessage(update.effective_chat.id, "Current running job killed.")
+    msg = context.bot.sendMessage(update.effective_chat.id, "Killing current running job.")
+
+    if 'DYNO' not in os.environ:
+        subprocess.call(['taskkill', '/F', '/T', '/PID', str(proc.pid)])
+    else:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+
+    sleep(5)
+    msg.edit_text("Current running job killed.")
 
 
 dp.add_handler(CommandHandler('clone', clone))
