@@ -156,7 +156,7 @@ def clone(update: Update, context: CallbackContext):
         proc.stdout.flush()
     try:
         message.edit_text(to_send)
-    except BadRequest:
+    except (TimedOut, RetryAfter, BadRequest):
         pass
 
     proc = None
