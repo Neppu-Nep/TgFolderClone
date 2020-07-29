@@ -4,7 +4,8 @@ import re
 import os
 import sys
 import signal
-from time import sleep, monotonic
+import shutil
+from time import sleep, monotonic, time
 
 from telegram import Update, ParseMode
 from telegram.constants import MAX_MESSAGE_LENGTH
@@ -26,6 +27,26 @@ threads = threading.BoundedSemaphore(1)
 allowed_chats = config.ALLOWED_CHATS
 queue = []
 proc = None
+botStartTime = time()
+
+
+def get_readable_time(seconds: int) -> str:
+    result = ''
+    (days, remainder) = divmod(seconds, 86400)
+    days = int(days)
+    if days != 0:
+        result += f'{days}d'
+    (hours, remainder) = divmod(remainder, 3600)
+    hours = int(hours)
+    if hours != 0:
+        result += f'{hours}h'
+    (minutes, seconds) = divmod(remainder, 60)
+    minutes = int(minutes)
+    if minutes != 0:
+        result += f'{minutes}m'
+    seconds = int(seconds)
+    result += f'{seconds}s'
+    return result
 
 
 @run_async
@@ -190,7 +211,15 @@ def stop(update: Update, context: CallbackContext):
     msg.edit_text("Current running job killed.")
 
 
+@run_async
+def uptime(update: Update, context: CallbackContext):
+    currentTime = get_readable_time((time() - botStartTime))
+    stats = f'Bot Uptime: {currentTime}'
+    context.bot.sendMessage(update.effective_chat.id, stats)
+
+
 dp.add_handler(CommandHandler('clone', clone))
+dp.add_handler(CommandHandler('uptime', uptime))
 dp.add_handler(CommandHandler('status', status))
 dp.add_handler(CommandHandler('stop', stop))
 print("Bot Started.")
