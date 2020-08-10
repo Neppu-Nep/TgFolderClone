@@ -119,7 +119,10 @@ class MultiFolderClone():
 
     def _create_drive(self):
         while True:
-            random_acc = random.choice(self.accounts)
+            try:
+                random_acc = random.choice(self.accounts)
+            except IndexError:
+                raise RuntimeError("No more SA accounts to choose from.")
             try:
                 credentials = Credentials.from_service_account_file(random_acc, scopes=[
                     "https://www.googleapis.com/auth/drive"
@@ -313,7 +316,7 @@ class MultiFolderClone():
                 self.bad_drives = []
 
                 # If there is less than 2 SAs, exit
-                if len(self.accounts) == 1:
+                if len(self.accounts) < 2:
                     raise RuntimeError('Out of SAs.')
 
             # copy completed
